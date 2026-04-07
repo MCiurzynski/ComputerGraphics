@@ -1,0 +1,11 @@
+[project]
+name = "computer-graphics"
+version = "0.1.0"
+description = "Simple 3D rendering engine"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.4.4",
+    "opencv-python>=4.13.0.92",
+    "pygame>=2.6.1",
+]
