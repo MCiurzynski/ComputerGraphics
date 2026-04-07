@@ -19,6 +19,11 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
                 
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 4:
+                    camera.change_focal_length(10)
+                if event.button == 5:
+                    camera.change_focal_length(-10)
         keys = pygame.key.get_pressed()
         
         if keys[pygame.K_w]:
@@ -41,9 +46,9 @@ def main():
         mouse_dx, mouse_dy = pygame.mouse.get_rel()
         
         if pygame.mouse.get_pressed()[0]:
-            sensitivity = 0.005
+            sensitivity = 0.001
             camera.rotateY(mouse_dx * sensitivity)
-            camera.rotateX(mouse_dy * sensitivity)
+            camera.rotateX(-mouse_dy * sensitivity)
 
         casted = camera.cast()
         

@@ -91,7 +91,8 @@ class VirtualCamera:
             object.transform(matrix)
     
     def change_focal_length(self, step):
-        self.d = self.d / step
+        if self.d + step != 0:
+            self.d = self.d + step
 
     def cast(self):
         matrix = np.diag([1.0, 1.0, 1.0, 0.0])
