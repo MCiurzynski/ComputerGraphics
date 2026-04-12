@@ -1,15 +1,14 @@
 use core::panic;
-use std::{f64::consts::PI, fs::File, io::Read, path::Path};
-
 use glam::{DMat4, DVec4};
+use minifb::{Key, Window, WindowOptions};
+use std::{f64::consts::PI, fs::File, io::Read, path::Path};
+use std::io;
 
-const WIDTH: usize = 1000;
+const WIDTH: usize = 1000; // Window constants
 const HEIGHT: usize = 1000;
 const FOCAL_LENGTH: f64 = 100.0;
 
-use minifb::{Key, Window, WindowOptions};
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug)] // Struct containing color
 struct Color {
     red: u8,
     green: u8,
@@ -18,10 +17,12 @@ struct Color {
 
 impl Color {
     fn encode(&self) -> u32 {
+        // encoder for buffer
         u32::from_le_bytes([self.blue, self.green, self.red, 0])
     }
 
     fn white() -> Self {
+        // White color constructor
         Self {
             red: 255,
             green: 255,
@@ -31,13 +32,15 @@ impl Color {
 }
 
 struct Line {
+    // Struct containing line attributes
     start: DVec4,
     end: DVec4,
     color: Color,
 }
 
 impl Line {
-    fn new(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, color: Color) -> Self {
+    // Methods for line
+    fn new(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, color: Color) -> Self { // Line constructor
         Self {
             start: DVec4::new(x0, y0, z0, 1.0),
             end: DVec4::new(x1, y1, z1, 1.0),
@@ -45,34 +48,44 @@ impl Line {
         }
     }
 
-    fn normalize(&mut self) {
+    fn normalize(&mut self) { // Points normalization in line
         self.start = self.start / self.start.w;
         self.end = self.end / self.end.w;
     }
 
-    fn transform(&mut self, matrix: DMat4) {
+    fn transform(&mut self, matrix: DMat4) { // Applying transformation matrix to line points
         self.start = matrix * self.start;
         self.end = matrix * self.end;
         self.normalize();
     }
 
-    fn cast(&self, d: f64) -> Line {
+    fn cast(&self, d: f64) -> Line { // Casting line to z axis plane
         let mut cast_matrix = DMat4::IDENTITY;
         cast_matrix.w_axis.w = 0.0;
         cast_matrix.z_axis.w = 1.0 / d;
-        let translation_matrix =
-            get_translation_matrix(WIDTH as f64 / 2.0, HEIGHT as f64 / 2.0, 0.0);
-        let matrix = translation_matrix * cast_matrix;
-        let mut casted = Line {
-            start: matrix * self.start,
-            end: matrix * self.end,
-            color: self.color,
-        };
-        casted.normalize();
-        casted
-    }
 
-    fn load(path: &str) -> Vec<Line> {
+        let mut start_casted = cast_matrix * self.start;
+        let mut end_casted = cast_matrix * self.end;
+
+        if start_casted.w != 0.0 {
+            start_casted = start_casted / start_casted.w;
+        }
+        if end_casted.w != 0.0 {
+            end_casted = end_casted / end_casted.w;
+        }
+
+        start_casted.x += WIDTH as f64 / 2.0;
+        start_casted.y += HEIGHT as f64 / 2.0;
+        end_casted.x += WIDTH as f64 / 2.0;
+        end_casted.y += HEIGHT as f64 / 2.0;
+
+        Line {
+            start: start_casted,
+            end: end_casted,
+            color: self.color,
+        }
+    }
+    fn load(path: &str) -> Vec<Line> { // Loading objects from file
         let path = Path::new(path);
         let display = path.display();
         let mut file = match File::open(&path) {
@@ -105,16 +118,7 @@ impl Line {
     }
 }
 
-enum Transform {
-    TranslateX(f64),
-    TranslateY(f64),
-    TranslateZ(f64),
-    RotateX(f64),
-    RotateY(f64),
-    RotateZ(f64),
-}
-
-fn get_translation_matrix(x: f64, y: f64, z: f64) -> DMat4 {
+fn get_translation_matrix(x: f64, y: f64, z: f64) -> DMat4 { // Creating translation matrix
     let mut m: DMat4 = DMat4::IDENTITY;
     m.w_axis.x = x;
     m.w_axis.y = y;
@@ -122,7 +126,7 @@ fn get_translation_matrix(x: f64, y: f64, z: f64) -> DMat4 {
     m
 }
 
-fn get_rotation_matrix(x: f64, y: f64, z: f64) -> DMat4 {
+fn get_rotation_matrix(x: f64, y: f64, z: f64) -> DMat4 { // Creating rotation matrix
     let mut x_rotation: DMat4 = DMat4::IDENTITY;
     x_rotation.y_axis.y = f64::cos(x);
     x_rotation.y_axis.z = f64::sin(x);
@@ -143,7 +147,16 @@ fn get_rotation_matrix(x: f64, y: f64, z: f64) -> DMat4 {
     x_rotation * y_rotation * z_rotation
 }
 
-impl Transform {
+enum Transform { // Base transformations
+    TranslateX(f64),
+    TranslateY(f64),
+    TranslateZ(f64),
+    RotateX(f64),
+    RotateY(f64),
+    RotateZ(f64),
+}
+
+impl Transform { // Matching transformations enum to matrixes
     fn matrix(self) -> DMat4 {
         match self {
             Transform::TranslateX(step) => get_translation_matrix(step, 0.0, 0.0),
@@ -238,7 +251,7 @@ impl Screen {
         }
     }
 
-    fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: &Color) {
+    fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: &Color) { // Bresenham algorithm implementation
         if (y1 - y0).abs() < (x1 - x0).abs() {
             if x0 > x1 {
                 self.draw_low(x1, y1, x0, y0, color);
@@ -253,6 +266,7 @@ impl Screen {
             }
         }
     }
+
     fn draw_line_from_points(&mut self, start: &DVec4, end: &DVec4, color: &Color) {
         let max_coord = 20_000.0;
         if start.x.abs() > max_coord
@@ -294,7 +308,7 @@ impl Screen {
         }
     }
 
-    fn transform_matrix(&self) -> DMat4 {
+    fn transform_matrix(&self) -> DMat4 { // keyboard handling
         let mut matrix = DMat4::IDENTITY;
         if self.is_key_down(Key::A) {
             matrix = Transform::TranslateX(1.0).matrix() * matrix;
@@ -346,10 +360,12 @@ impl Screen {
 }
 
 fn main() {
+    let mut path = String::new();
+    io::stdin().read_line(&mut path).unwrap();
+    let mut vec = Line::load(&path.trim());
+
     let mut screen = Screen::new();
     screen.set_target_fps(60);
-
-    let mut vec = Line::load("../assets/rubik2x2x2.txt");
 
     while screen.is_open() && !screen.is_key_down(Key::Escape) {
         let matrix = screen.transform_matrix();
