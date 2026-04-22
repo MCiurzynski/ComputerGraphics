@@ -2,7 +2,7 @@ use core::panic;
 use glam::{DMat4, DVec4};
 use minifb::{Key, Window, WindowOptions, KeyRepeat};
 use rfd::FileDialog;
-use std::{f64::consts::PI, fs::File, io::Read, path::Path};
+use std::{f64::consts::PI, fs::File};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const WIDTH: usize = 1000; // Window constants
@@ -32,103 +32,103 @@ impl Color {
     }
 }
 
-struct Line {
-    // Struct containing line attributes
-    start: DVec4,
-    end: DVec4,
+struct Polygon {
+    points: Vec<DVec4>,
     color: Color,
 }
 
-impl Line {
+impl Polygon {
     // Methods for line
     fn normalize(&mut self) {
-        // Points normalization in line
-        self.start = self.start / self.start.w;
-        self.end = self.end / self.end.w;
+        // Points normalization in polygon
+        for point in self.points.iter_mut() {
+            *point = *point / point.w;
+        }
+        
     }
 
     fn transform(&mut self, matrix: DMat4) {
         // Applying transformation matrix to line points
-        self.start = matrix * self.start;
-        self.end = matrix * self.end;
+        for point in self.points.iter_mut() {
+            *point = matrix * *point;
+        }
         self.normalize();
     }
 
-    fn cast(&self, d: f64) -> Line {
+    fn cast(&self, d: f64) -> Polygon {
         // Casting line to z axis plane
         let mut cast_matrix = DMat4::IDENTITY;
         cast_matrix.w_axis.w = 0.0;
         cast_matrix.z_axis.w = 1.0 / d;
 
-        let mut start_casted = cast_matrix * self.start;
-        let mut end_casted = cast_matrix * self.end;
-
-        if start_casted.w != 0.0 {
-            start_casted = start_casted / start_casted.w;
+        let mut casted_points: Vec<DVec4> = Vec::new();
+        for point in self.points.iter() {
+            let mut casted = cast_matrix * point;
+            if casted.w != 0.0 {
+                casted = casted / casted.w;
+            }
+            casted.x += WIDTH as f64 / 2.0;
+            casted.y += HEIGHT as f64 / 2.0;
+            casted_points.push(casted);
         }
-        if end_casted.w != 0.0 {
-            end_casted = end_casted / end_casted.w;
-        }
 
-        start_casted.x += WIDTH as f64 / 2.0;
-        start_casted.y += HEIGHT as f64 / 2.0;
-        end_casted.x += WIDTH as f64 / 2.0;
-        end_casted.y += HEIGHT as f64 / 2.0;
-
-        Line {
-            start: start_casted,
-            end: end_casted,
+        Polygon {
+            points: casted_points,
             color: self.color,
         }
     }
-    fn load(path: &str) -> Vec<Line> {
-        let path = Path::new(path);
-        let display = path.display();
-        let mut content = String::new();
+    fn load(path: &str) -> Vec<Polygon> {
+        use std::io::{BufRead, BufReader};
 
-        File::open(&path)
-            .unwrap_or_else(|why| panic!("Couldn't open {display}, {why}"))
-            .read_to_string(&mut content)
-            .unwrap_or_else(|why| panic!("Couldn't read {display}, {why}"));
+        // Otwieramy plik, używamy BufReader dla lepszej wydajności czytania linia po linii
+        let file = File::open(path).expect("Nie można otworzyć pliku OBJ");
+        let reader = BufReader::new(file);
 
         let mut vertices: Vec<DVec4> = Vec::new();
-        let mut lines: Vec<Line> = Vec::new();
+        let mut polygons: Vec<Polygon> = Vec::new();
 
-        for line in content.lines() {
-            let mut parts = line.split_whitespace();
-            match parts.next() {
+        for line in reader.lines() {
+            let line = line.expect("Błąd podczas czytania linii");
+            let mut tokens = line.split_whitespace();
+
+            match tokens.next() {
                 Some("v") => {
-                    let x: f64 = parts.next().unwrap().parse().unwrap();
-                    let y: f64 = parts.next().unwrap().parse().unwrap();
-                    let z: f64 = parts.next().unwrap().parse().unwrap();
+                    // Parsowanie wierzchołków
+                    let x: f64 = tokens.next().unwrap_or("0").parse().unwrap_or(0.0);
+                    let y: f64 = tokens.next().unwrap_or("0").parse().unwrap_or(0.0);
+                    let z: f64 = tokens.next().unwrap_or("0").parse().unwrap_or(0.0);
+                    
+                    // Współrzędna w = 1.0 dla punktów w przestrzeni 3D
                     vertices.push(DVec4::new(x, y, z, 1.0));
                 }
-                Some("f") | Some("l") => {
-                    let mut face_indices = Vec::new();
-                    for part in parts {
-                        let v_str = part.split('/').next().unwrap();
-                        let idx: usize = v_str.parse().unwrap();
-                        face_indices.push(idx - 1);
-                    }
-
-                    let len = face_indices.len();
-                    if len >= 2 {
-                        for i in 0..len {
-                            let start_idx = face_indices[i];
-                            let end_idx = face_indices[(i + 1) % len];
-
-                            lines.push(Line {
-                                start: vertices[start_idx],
-                                end: vertices[end_idx],
-                                color: Color::white(),
-                            });
+                Some("f") => {
+                    // Parsowanie ścian (wielokątów)
+                    let mut points = Vec::new();
+                    for token in tokens {
+                        // Format ściany to często "v/vt/vn", interesuje nas tylko pierwszy element "v"
+                        let v_index_str = token.split('/').next().unwrap_or("1");
+                        
+                        if let Ok(v_index) = v_index_str.parse::<usize>() {
+                            // Format OBJ indeksuje od 1, więc musimy odjąć 1 dla tablicy w Ruście
+                            if v_index > 0 && v_index <= vertices.len() {
+                                points.push(vertices[v_index - 1]);
+                            }
                         }
                     }
+                    
+                    // Jeśli udało się zebrać punkty, tworzymy nowy Polygon
+                    if !points.is_empty() {
+                        polygons.push(Polygon {
+                            points,
+                            color: Color::white(), // Używamy domyślnego, białego koloru z Twojego konstruktora
+                        });
+                    }
                 }
-                _ => {}
+                _ => {} // Ignorujemy komentarze (#), normalne (vn), tekstury (vt) itp.
             }
         }
-        lines
+
+        polygons
     }
 }
 
@@ -302,14 +302,16 @@ impl Screen {
         self.draw_line(x0, y0, x1, y1, color);
     }
 
-    fn draw_line_from_line(&mut self, line: &Line) {
-        let casted = line.cast(self.focal_length);
-        self.draw_line_from_points(&casted.start, &casted.end, &casted.color);
+    fn draw_polygon(&mut self, polygon: &Polygon) {
+        let casted = polygon.cast(self.focal_length);
+        for pair in casted.points.windows(2) {
+            self.draw_line_from_points(&pair[0], &pair[1], &polygon.color);
+        }
     }
 
-    fn draw_line_from_vec(&mut self, vec: &[Line]) {
-        for line in vec {
-            self.draw_line_from_line(&line);
+    fn draw_polygons(&mut self, polygons: &[Polygon]) {
+        for polygon in polygons.iter() {
+            self.draw_polygon(polygon);
         }
     }
 
@@ -412,15 +414,15 @@ fn main() {
         }
     };
 
-    let mut vec = Line::load(&path);
+    let mut vec = Polygon::load(&path);
 
     let mut screen = Screen::new();
     screen.set_target_fps(60);
 
     while screen.is_open() && !screen.is_key_down(Key::Escape) {
         let matrix = screen.transform_matrix();
-        for line in vec.iter_mut() {
-            line.transform(matrix);
+        for polygon in vec.iter_mut() {
+            polygon.transform(matrix);
         }
         screen.scroll_handling();
         
@@ -432,7 +434,7 @@ fn main() {
             screen.save_screenshot(&filename);
         }
         screen.clear();
-        screen.draw_line_from_vec(&vec);
+        screen.draw_polygons(&vec);
         screen.update();
     }
 }
