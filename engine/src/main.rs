@@ -1,8 +1,9 @@
 use core::panic;
 use glam::{DMat4, DVec4};
-use minifb::{Key, Window, WindowOptions};
+use minifb::{Key, Window, WindowOptions, KeyRepeat};
+use rfd::FileDialog;
 use std::{f64::consts::PI, fs::File, io::Read, path::Path};
-use std::io;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const WIDTH: usize = 1000; // Window constants
 const HEIGHT: usize = 1000;
@@ -40,26 +41,21 @@ struct Line {
 
 impl Line {
     // Methods for line
-    fn new(x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64, color: Color) -> Self { // Line constructor
-        Self {
-            start: DVec4::new(x0, y0, z0, 1.0),
-            end: DVec4::new(x1, y1, z1, 1.0),
-            color: color,
-        }
-    }
-
-    fn normalize(&mut self) { // Points normalization in line
+    fn normalize(&mut self) {
+        // Points normalization in line
         self.start = self.start / self.start.w;
         self.end = self.end / self.end.w;
     }
 
-    fn transform(&mut self, matrix: DMat4) { // Applying transformation matrix to line points
+    fn transform(&mut self, matrix: DMat4) {
+        // Applying transformation matrix to line points
         self.start = matrix * self.start;
         self.end = matrix * self.end;
         self.normalize();
     }
 
-    fn cast(&self, d: f64) -> Line { // Casting line to z axis plane
+    fn cast(&self, d: f64) -> Line {
+        // Casting line to z axis plane
         let mut cast_matrix = DMat4::IDENTITY;
         cast_matrix.w_axis.w = 0.0;
         cast_matrix.z_axis.w = 1.0 / d;
@@ -85,40 +81,59 @@ impl Line {
             color: self.color,
         }
     }
-    fn load(path: &str) -> Vec<Line> { // Loading objects from file
+    fn load(path: &str) -> Vec<Line> {
         let path = Path::new(path);
         let display = path.display();
-        let mut file = match File::open(&path) {
-            Err(why) => panic!("Couldn't open {display}, {why}"),
-            Ok(file) => file,
-        };
         let mut content = String::new();
-        match file.read_to_string(&mut content) {
-            Err(why) => panic!("Couldn't open {display}, {why}"),
-            Ok(_) => (),
-        }
+
+        File::open(&path)
+            .unwrap_or_else(|why| panic!("Couldn't open {display}, {why}"))
+            .read_to_string(&mut content)
+            .unwrap_or_else(|why| panic!("Couldn't read {display}, {why}"));
+
+        let mut vertices: Vec<DVec4> = Vec::new();
         let mut lines: Vec<Line> = Vec::new();
+
         for line in content.lines() {
-            let coords: Vec<f64> = line
-                .split_whitespace()
-                .map(|c| c.parse().unwrap())
-                .collect();
-            let line = Line::new(
-                coords[0],
-                coords[1],
-                coords[2],
-                coords[3],
-                coords[4],
-                coords[5],
-                Color::white(),
-            );
-            lines.push(line);
+            let mut parts = line.split_whitespace();
+            match parts.next() {
+                Some("v") => {
+                    let x: f64 = parts.next().unwrap().parse().unwrap();
+                    let y: f64 = parts.next().unwrap().parse().unwrap();
+                    let z: f64 = parts.next().unwrap().parse().unwrap();
+                    vertices.push(DVec4::new(x, y, z, 1.0));
+                }
+                Some("f") | Some("l") => {
+                    let mut face_indices = Vec::new();
+                    for part in parts {
+                        let v_str = part.split('/').next().unwrap();
+                        let idx: usize = v_str.parse().unwrap();
+                        face_indices.push(idx - 1);
+                    }
+
+                    let len = face_indices.len();
+                    if len >= 2 {
+                        for i in 0..len {
+                            let start_idx = face_indices[i];
+                            let end_idx = face_indices[(i + 1) % len];
+
+                            lines.push(Line {
+                                start: vertices[start_idx],
+                                end: vertices[end_idx],
+                                color: Color::white(),
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
         lines
     }
 }
 
-fn get_translation_matrix(x: f64, y: f64, z: f64) -> DMat4 { // Creating translation matrix
+fn get_translation_matrix(x: f64, y: f64, z: f64) -> DMat4 {
+    // Creating translation matrix
     let mut m: DMat4 = DMat4::IDENTITY;
     m.w_axis.x = x;
     m.w_axis.y = y;
@@ -126,7 +141,8 @@ fn get_translation_matrix(x: f64, y: f64, z: f64) -> DMat4 { // Creating transla
     m
 }
 
-fn get_rotation_matrix(x: f64, y: f64, z: f64) -> DMat4 { // Creating rotation matrix
+fn get_rotation_matrix(x: f64, y: f64, z: f64) -> DMat4 {
+    // Creating rotation matrix
     let mut x_rotation: DMat4 = DMat4::IDENTITY;
     x_rotation.y_axis.y = f64::cos(x);
     x_rotation.y_axis.z = f64::sin(x);
@@ -147,7 +163,8 @@ fn get_rotation_matrix(x: f64, y: f64, z: f64) -> DMat4 { // Creating rotation m
     x_rotation * y_rotation * z_rotation
 }
 
-enum Transform { // Base transformations
+enum Transform {
+    // Base transformations
     TranslateX(f64),
     TranslateY(f64),
     TranslateZ(f64),
@@ -156,7 +173,8 @@ enum Transform { // Base transformations
     RotateZ(f64),
 }
 
-impl Transform { // Matching transformations enum to matrixes
+impl Transform {
+    // Matching transformations enum to matrixes
     fn matrix(self) -> DMat4 {
         match self {
             Transform::TranslateX(step) => get_translation_matrix(step, 0.0, 0.0),
@@ -251,7 +269,8 @@ impl Screen {
         }
     }
 
-    fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: &Color) { // Bresenham algorithm implementation
+    fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: &Color) {
+        // Bresenham algorithm implementation
         if (y1 - y0).abs() < (x1 - x0).abs() {
             if x0 > x1 {
                 self.draw_low(x1, y1, x0, y0, color);
@@ -308,13 +327,14 @@ impl Screen {
         }
     }
 
-    fn transform_matrix(&self) -> DMat4 { // keyboard handling
+    fn transform_matrix(&self) -> DMat4 {
+        // keyboard handling
         let mut matrix = DMat4::IDENTITY;
         if self.is_key_down(Key::A) {
-            matrix = Transform::TranslateX(1.0).matrix() * matrix;
+            matrix = Transform::TranslateX(2.0).matrix() * matrix;
         }
         if self.is_key_down(Key::D) {
-            matrix = Transform::TranslateX(-1.0).matrix() * matrix;
+            matrix = Transform::TranslateX(-2.0).matrix() * matrix;
         }
         if self.is_key_down(Key::W) {
             matrix = Transform::TranslateZ(-1.0).matrix() * matrix;
@@ -323,10 +343,10 @@ impl Screen {
             matrix = Transform::TranslateZ(1.0).matrix() * matrix;
         }
         if self.is_key_down(Key::Space) {
-            matrix = Transform::TranslateY(1.0).matrix() * matrix;
+            matrix = Transform::TranslateY(2.0).matrix() * matrix;
         }
         if self.is_key_down(Key::LeftShift) {
-            matrix = Transform::TranslateY(-1.0).matrix() * matrix;
+            matrix = Transform::TranslateY(-2.0).matrix() * matrix;
         }
         if self.is_key_down(Key::E) {
             matrix = Transform::RotateZ(-PI / 90.0).matrix() * matrix;
@@ -357,12 +377,42 @@ impl Screen {
             }
         }
     }
+
+    fn save_screenshot(&self, path: &str) {
+        let width = self.width as u32;
+        let height = self.height as u32;
+        let mut img_buffer = vec![0u8; (width * height * 3) as usize];
+
+        for (i, &pixel) in self.buffer.iter().enumerate() {
+            let bytes = pixel.to_le_bytes(); 
+            
+            img_buffer[i * 3] = bytes[2];
+            img_buffer[i * 3 + 1] = bytes[1];
+            img_buffer[i * 3 + 2] = bytes[0];
+        }
+
+        match image::save_buffer(path, &img_buffer, width, height, image::ColorType::Rgb8) {
+            Ok(_) => println!("File saved: {}", path),
+            Err(e) => println!("Error during saving file: {}", e),
+        }
+    }
 }
 
 fn main() {
-    let mut path = String::new();
-    io::stdin().read_line(&mut path).unwrap();
-    let mut vec = Line::load(&path.trim());
+    let file = FileDialog::new()
+        .set_title("Select file")
+        .add_filter("OBJ models", &["obj"])
+        .pick_file();
+
+    let path = match file {
+        Some(path) => path.display().to_string(),
+        None => {
+            println!("File not selected");
+            return;
+        }
+    };
+
+    let mut vec = Line::load(&path);
 
     let mut screen = Screen::new();
     screen.set_target_fps(60);
@@ -373,6 +423,14 @@ fn main() {
             line.transform(matrix);
         }
         screen.scroll_handling();
+        
+        if screen.window.is_key_pressed(Key::Enter, KeyRepeat::No) {
+            let start = SystemTime::now();
+            let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap();
+            let filename = format!("screenshot_{}.png", since_the_epoch.as_millis());
+            
+            screen.save_screenshot(&filename);
+        }
         screen.clear();
         screen.draw_line_from_vec(&vec);
         screen.update();
