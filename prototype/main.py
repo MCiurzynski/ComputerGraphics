@@ -4,7 +4,7 @@ import pygame
 
 def main():    
     camera = VirtualCamera()
-    camera.load_objects('../assets/rubik2x2x2.txt')
+    camera.load_objects('../assets/rubik2x2x2.obj')
     
     (width, height) = (800, 800)
     screen = pygame.display.set_mode((width, height))
@@ -54,8 +54,16 @@ def main():
         
         screen.fill((200, 200, 200)) 
 
-        for line in casted:
-            pygame.draw.line(screen, (0, 0, 0), line.start.coords[:2], line.end.coords[:2], 1)
+        for polygon in casted:
+            points_2d = [(p.coords[0], p.coords[1]) for p in polygon.points]
+            
+            if len(points_2d) >= 3:
+                pygame.draw.polygon(screen, (100, 150, 200), points_2d, 0)
+                
+                pygame.draw.polygon(screen, (0, 0, 0), points_2d, 1)
+                
+            elif len(points_2d) == 2:
+                pygame.draw.line(screen, (0, 0, 0), points_2d[0], points_2d[1], 1)
 
         pygame.display.flip()
         

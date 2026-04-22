@@ -16,29 +16,22 @@ class Point:
     def __str__(self):
         return str(self.coords)
 
-class Line:
-    def __init__(self, start, end):
-        self.start = start
-        self.end = end
+class Polygon:
+    def __init__(self, points):
+        self.points = points 
 
-    @staticmethod
-    def from_list(list):
-        start = Point(*list[:3])
-        end = Point(*list[3:])
-        return Line(start, end)
-    
     def normalize(self):
-        self.start.normalize()
-        self.end.normalize()
-    
+        for p in self.points:
+            p.normalize()
+
     def transform(self, matrix):
-        self.start.transform(matrix)
-        self.end.transform(matrix)
+        for p in self.points:
+            p.transform(matrix)
         self.normalize()
         return self
 
     def __str__(self):
-        return f'{str(self.start)} -> {str(self.end)}'
+        return f"Polygon({', '.join(str(p) for p in self.points)})"
 
 class VirtualCamera:
     def __init__(self):
@@ -113,8 +106,31 @@ class VirtualCamera:
         if not file.is_file():
             raise FileNotFoundError()
         
+        vertices = []
+        
         with open(file, 'r') as f:
             for line in f:
-                parts = line.strip().split(' ')
-                line = Line.from_list(parts)
-                self.objects.append(line)
+                parts = line.strip().split()
+                if not parts:
+                    continue
+
+                if parts[0] == 'v':
+                    x = float(parts[1]) if len(parts) > 1 else 0.0
+                    y = float(parts[2]) if len(parts) > 2 else 0.0
+                    z = float(parts[3]) if len(parts) > 3 else 0.0
+                    vertices.append(Point(x, y, z))
+
+                elif parts[0] == 'f':
+                    points = []
+                    for token in parts[1:]:
+                        v_index_str = token.split('/')[0]
+                        try:
+                            v_index = int(v_index_str)
+                            if 0 < v_index <= len(vertices):
+                                orig_point = vertices[v_index - 1]
+                                points.append(copy.deepcopy(orig_point))
+                        except ValueError:
+                            pass
+                    
+                    if points:
+                        self.objects.append(Polygon(points))
