@@ -39,16 +39,17 @@ def main():
         if keys[pygame.K_LSHIFT]:
             camera.translateY(5)
         if keys[pygame.K_e]:
-            camera.rotateZ(np.pi / 90)
-        if keys[pygame.K_q]:
             camera.rotateZ(-np.pi / 90)
-
-        mouse_dx, mouse_dy = pygame.mouse.get_rel()
-        
-        if pygame.mouse.get_pressed()[0]:
-            sensitivity = 0.001
-            camera.rotateY(mouse_dx * sensitivity)
-            camera.rotateX(-mouse_dy * sensitivity)
+        if keys[pygame.K_q]:
+            camera.rotateZ(np.pi / 90)
+        if keys[pygame.K_UP]:
+            camera.rotateX(np.pi / 90)
+        if keys[pygame.K_DOWN]:
+            camera.rotateX(-np.pi / 90)
+        if keys[pygame.K_RIGHT]:
+            camera.rotateY(-np.pi / 90)
+        if keys[pygame.K_LEFT]:
+            camera.rotateY(np.pi / 90)
 
         casted = camera.cast()
         

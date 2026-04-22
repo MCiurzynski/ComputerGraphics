@@ -32,6 +32,94 @@ class Polygon:
 
     def __str__(self):
         return f"Polygon({', '.join(str(p) for p in self.points)})"
+    
+    def _get_2d_bbox(self):
+        xs = [p.coords[0] for p in self.points]
+        ys = [p.coords[1] for p in self.points]
+        return min(xs), max(xs), min(ys), max(ys)
+    
+    def _get_plane(self):
+        if len(self.points) < 3:
+            return np.array([0.0, 0.0, 1.0]), 0.0
+        
+        p0 = self.points[0].coords[:3]
+        p1 = self.points[1].coords[:3]
+        p2 = self.points[2].coords[:3]
+        
+        normal = np.cross(p1 - p0, p2 - p0)
+        norm_len = np.linalg.norm(normal)
+        if norm_len > 1e-6:
+            normal = normal / norm_len
+            
+        D = -np.dot(normal, p0)
+        return normal, D
+
+    def _test2_projections_sat(self, other):
+        def get_normals_2d(poly):
+            normals = []
+            pts = poly.points
+            for i in range(len(pts)):
+                p1 = pts[i].coords[:2]
+                p2 = pts[(i+1) % len(pts)].coords[:2]
+                edge = p2 - p1
+                normals.append(np.array([-edge[1], edge[0]]))
+            return normals
+
+        def project(poly, axis):
+            dots = [np.dot(pt.coords[:2], axis) for pt in poly.points]
+            return min(dots), max(dots)
+
+        normals = get_normals_2d(self) + get_normals_2d(other)
+        for n in normals:
+            norm_len = np.linalg.norm(n)
+            if norm_len < 1e-6:
+                continue
+            n = n / norm_len
+            min_p, max_p = project(self, n)
+            min_q, max_q = project(other, n)
+            if max_p < min_q or max_q < min_p:
+                return True
+        return False
+
+    def _test3_opposite_side(self, other, obs_pos=np.array([0.0, 0.0, 0.0])):
+        normal_q, D_q = other._get_plane()
+        obs_side = np.dot(normal_q, obs_pos) + D_q
+        for p in self.points:
+            p_side = np.dot(normal_q, p.coords[:3]) + D_q
+            if (obs_side > 0 and p_side > -1e-5) or (obs_side < 0 and p_side < 1e-5):
+                return False
+        return True
+
+    def _test4_same_side(self, other, obs_pos=np.array([0.0, 0.0, 0.0])):
+        normal_p, D_p = self._get_plane()
+        obs_side = np.dot(normal_p, obs_pos) + D_p
+        for q in other.points:
+            q_side = np.dot(normal_p, q.coords[:3]) + D_p
+            if (obs_side > 0 and q_side < 1e-5) or (obs_side < 0 and q_side > -1e-5):
+                return False
+        return True
+
+    def __lt__(self, other):
+        min_xs, max_xs, min_ys, max_ys = self._get_2d_bbox()
+        min_xo, max_xo, min_yo, max_yo = other._get_2d_bbox()
+        if (max_xs < min_xo or min_xs > max_xo or max_ys < min_yo or min_ys > max_yo):
+            return False 
+            
+        if self._test2_projections_sat(other):
+            return False
+            
+        if self._test3_opposite_side(other):
+            return True 
+            
+        if self._test4_same_side(other):
+            return True 
+            
+        if other._test3_opposite_side(self):
+            return False 
+        if other._test4_same_side(self):
+            return False
+            
+        return False
 
 class VirtualCamera:
     def __init__(self):
@@ -94,7 +182,7 @@ class VirtualCamera:
         matrix2[0, 3] = 500
         matrix2[1, 3] = 500
         matrix = matrix2 @ matrix
-
+        self.objects.sort()
         casted = []
         for obj in self.objects:
             obj_copy = copy.deepcopy(obj)
