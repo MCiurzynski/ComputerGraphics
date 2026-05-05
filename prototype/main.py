@@ -5,7 +5,7 @@ import pygame
 
 def main():
     camera = VirtualCamera()
-    camera.load_objects("../assets/rubik2x2x2.obj")
+    camera.load_objects("../assets/rubik3x3x3.obj")
 
     (width, height) = (800, 800)
     screen = pygame.display.set_mode((width, height))
@@ -62,7 +62,7 @@ def main():
 
             if len(points_2d) >= 3:
                 pygame.draw.polygon(screen, color, points_2d, 0)
-                pygame.draw.polygon(screen, (0, 0, 0), points_2d, 2)
+                pygame.draw.polygon(screen, (0, 0, 0), points_2d, 4)
 
         pygame.display.flip()
 

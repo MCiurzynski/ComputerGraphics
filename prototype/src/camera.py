@@ -248,7 +248,9 @@ class VirtualCamera:
         vertices = []
 
         with open(file, "r") as f:
-            for line in f:
+            lines = f.read().replace(";", "\n").splitlines()
+
+            for line in lines:
                 parts = line.strip().split()
                 if not parts:
                     continue
