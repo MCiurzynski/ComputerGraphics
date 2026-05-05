@@ -1,19 +1,15 @@
-v 50 150 50
-v 150 150 50
-v 150 150 150
-v 50 150 150
-v 100 50 100
+# Wierzchołki piramidy
+v 50 50 50
+v 50 100 50
+v 100 100 50
+v 100 50 50
+v 75 75 120
 
-l 1 2
-l 2 3
-l 3 4
-l 4 1
-l 1 5
-l 2 5
-l 3 5
-l 4 5
+# Podstawa (kwadrat rozbity na dwa trójkąty)
+f 1 2 3
+f 1 3 4
 
-f 1 2 3 4
+# Ściany boczne (trójkąty łączące podstawę z wierzchołkiem nr 5)
 f 1 2 5
 f 2 3 5
 f 3 4 5
