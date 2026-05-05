@@ -51,7 +51,7 @@ def main():
         if keys[pygame.K_LEFT]:
             camera.rotateY(np.pi / 90)
 
-        casted = camera.cast()
+        casted = (camera.cast())
         
         screen.fill((200, 200, 200)) 
 
@@ -60,11 +60,7 @@ def main():
             
             if len(points_2d) >= 3:
                 pygame.draw.polygon(screen, (100, 150, 200), points_2d, 0)
-                
-                pygame.draw.polygon(screen, (0, 0, 0), points_2d, 1)
-                
-            elif len(points_2d) == 2:
-                pygame.draw.line(screen, (0, 0, 0), points_2d[0], points_2d[1], 1)
+                pygame.draw.polygon(screen, (0, 0, 0), points_2d, 2)
 
         pygame.display.flip()
         
