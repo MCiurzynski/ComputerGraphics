@@ -17,6 +17,9 @@ class Point:
 
     def __str__(self):
         return str(self.coords)
+    
+    def copy(self):
+        return Point(self.coords[0], self.coords[1], self.coords[2])
 
 
 class Polygon:
@@ -25,8 +28,10 @@ class Polygon:
         self.color = self._get_rgb(hex)
 
     def _get_rgb(self, hex) -> tuple[int, int, int]:
+        if len(hex) == 3:
+            return hex
         if len(hex) != 6:
-            return (100, 150, 200)  # Fallback
+            return (100, 150, 200)
         return tuple(int(hex[i : i + 2], 16) for i in range(0, 6, 2))
 
     def normalize(self):
@@ -103,7 +108,30 @@ class Polygon:
                 back_points.append(I)
 
         return Polygon(front_points), Polygon(back_points)
+    
+    def copy(self):
+        points = [point.copy() for point in self.points]
+        return Polygon(points, self.color)
 
+    def clip_against_plane(self, plane_point, plane_normal):
+        if not self.points:
+            return None
+
+        plane_point = np.array(plane_point)
+        plane_normal = np.array(plane_normal)
+        
+        clipped_points = []
+        
+        for i in range(len(self.points)):
+            A = self.points[i]
+            dA = plane_normal @ (A.coords[:3] - plane_point)
+            if dA >= 0:
+                clipped_points.append(A)
+                
+        if len(clipped_points) >= 3:
+            return Polygon(clipped_points, self.color)
+        return None
+    
 
 class BSPNode:
     def __init__(self, polygon, left=None, right=None):
@@ -223,20 +251,28 @@ class VirtualCamera:
     def cast(self):
         matrix = np.diag([1.0, 1.0, 1.0, 0.0])
         matrix[3, 2] = 1.0 / self.d
-        matrix2 = np.eye(4, dtype="float")
+        matrix2 = np.eye(4, dtype='float')
         matrix2[0, 3] = 500
         matrix2[1, 3] = 500
         matrix = matrix2 @ matrix
-
+        
         if not self.bsp_tree:
             return []
-
-        sorted_objects = self._get_sorted_polygons(self.bsp_tree.head)
-
+            
+        sorted_polygons = self._get_sorted_polygons(self.bsp_tree.head)
+        
+        near_plane_point = [0.0, 0.0, 1.0] 
+        near_plane_normal = [0.0, 0.0, 1.0]
+        
         casted = []
-        for obj in sorted_objects:
-            obj_copy = copy.deepcopy(obj)
-            casted.append(obj_copy.transform(matrix))
+        for pol in sorted_polygons:
+            pol_copy = pol.copy()
+            
+            clipped_obj = pol_copy.clip_against_plane(near_plane_point, near_plane_normal)
+            
+            if clipped_obj is not None:
+                casted.append(clipped_obj.transform(matrix))
+                
         return casted
 
     def load_objects(self, path):
