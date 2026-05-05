@@ -2,7 +2,6 @@ import numpy as np
 import copy
 from pathlib import Path
 
-
 class Point:
     def __init__(self, x, y, z):
         self.coords = np.array([x, y, z, 1], dtype="float").T
@@ -58,20 +57,20 @@ class Polygon:
         norm = np.cross(v1, v2)
         return norm / np.linalg.norm(norm)
 
-    def front(self, other):
+    def is_in_front(self, other):
         normal = self.get_normal_vector()
-        first_point = self.points[0]
+        P0 = self.points[0]
         for point in other.points:
-            v = point.coords[:3] - first_point.coords[:3]
+            v = point.coords[:3] - P0.coords[:3]
             if normal @ v < 0:
                 return False
         return True
 
-    def back(self, other):
+    def is_in_back(self, other):
         normal = self.get_normal_vector()
-        first_point = self.points[0]
+        P0 = self.points[0]
         for point in other.points:
-            v = point.coords[:3] - first_point.coords[:3]
+            v = point.coords[:3] - P0.coords[:3]
             if normal @ v > 0:
                 return False
         return True
@@ -153,9 +152,9 @@ class BSP:
         front_list = []
         back_list = []
         for polygon in polygon_list:
-            if root.front(polygon):
+            if root.is_in_front(polygon):
                 front_list.append(polygon)
-            elif root.back(polygon):
+            elif root.is_in_back(polygon):
                 back_list.append(polygon)
             else:
                 front, back = root.cut(polygon)
@@ -169,9 +168,11 @@ class BSP:
 
 
 class VirtualCamera:
-    def __init__(self):
+    def __init__(self, width, height, d=1000):
         self.bsp_tree = None
-        self.d = 1000
+        self.d = d
+        self.width = width
+        self.height = height
 
     def _apply_transform(self, node, matrix):
         if node is None:
@@ -252,8 +253,8 @@ class VirtualCamera:
         matrix = np.diag([1.0, 1.0, 1.0, 0.0])
         matrix[3, 2] = 1.0 / self.d
         matrix2 = np.eye(4, dtype='float')
-        matrix2[0, 3] = 500
-        matrix2[1, 3] = 500
+        matrix2[0, 3] = self.width / 2
+        matrix2[1, 3] = self.height / 2
         matrix = matrix2 @ matrix
         
         if not self.bsp_tree:
