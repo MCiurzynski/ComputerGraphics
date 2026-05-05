@@ -1,10 +1,9 @@
 import numpy as np
-import copy
 from pathlib import Path
 
 class Point:
     def __init__(self, x, y, z):
-        self.coords = np.array([x, y, z, 1], dtype="float").T
+        self.coords = np.array([x, y, z, 1], dtype="float")
 
     def normalize(self):
         if self.coords[3] != 0:
@@ -130,14 +129,12 @@ class Polygon:
         if len(clipped_points) >= 3:
             return Polygon(clipped_points, self.color)
         return None
-    
 
 class BSPNode:
     def __init__(self, polygon, left=None, right=None):
         self.polygon = polygon
         self.left = left
         self.right = right
-
 
 class BSP:
     def __init__(self, polygons_list):
@@ -311,7 +308,7 @@ class VirtualCamera:
                             v_index = int(v_index_str)
                             if 0 < v_index <= len(vertices):
                                 orig_point = vertices[v_index - 1]
-                                points.append(copy.deepcopy(orig_point))
+                                points.append(orig_point.copy())
                         except ValueError:
                             pass
 
