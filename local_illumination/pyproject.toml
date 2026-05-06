@@ -1,0 +1,10 @@
+[project]
+name = "local-illumination"
+version = "0.1.0"
+description = "Phong illumination implementation"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "numpy>=2.4.4",
+    "pygame-ce>=2.5.7",
+]
