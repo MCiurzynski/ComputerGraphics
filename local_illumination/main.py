@@ -95,6 +95,7 @@ def main():
 
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 24)
+    details_font = pygame.font.SysFont(None, 20)
 
     def update_light_position(event):
         if 0 <= event.x < WIDTH and 0 <= event.y < HEIGHT:
@@ -116,12 +117,18 @@ def main():
     root.bind_all("<KeyRelease>", on_key_release)
 
     def update_fov(event):
-        if event.num == 4:  # Scroll up
-            pass
-        elif event.num == 5:  # Scroll down
-            pass
-        if event.delta != 0:
-            pass
+        direction = 0
+        if getattr(event, "delta", 0) > 0:
+            direction = 1
+        elif getattr(event, "delta", 0) < 0:
+            direction = -1
+        elif getattr(event, "num", None) == 4:  # Scroll up
+            direction = 1
+        elif getattr(event, "num", None) == 5:  # Scroll down
+            direction = -1
+
+        if direction != 0:
+            camera.update_fov(direction * 10)
 
     pygame_frame.bind("<Button-4>", update_fov)
     pygame_frame.bind("<Button-5>", update_fov)
@@ -149,6 +156,10 @@ def main():
 
         image = camera.draw()
         pygame.surfarray.blit_array(screen, image)
+        details = camera.get_details()
+        for idx, line in enumerate(details):
+            details_surface = details_font.render(line, True, (255, 255, 255))
+            screen.blit(details_surface, (10, 10 + idx * 22))
         fps = str(int(clock.get_fps()))
         fps_surface = font.render(f"FPS: {fps}", True, (0, 255, 0))
         screen.blit(fps_surface, (WIDTH - fps_surface.get_width() - 10, 10))

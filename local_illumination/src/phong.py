@@ -1,5 +1,4 @@
 import json
-
 import torch
 
 
@@ -68,22 +67,30 @@ class Camera:
         self.width = width
         self.height = height
         self.device = torch.device(device)
+        self._fov = 90
 
         self.sphere = Sphere(file, self.device)
         self.light = torch.tensor(
             [width / 2, height / 2, 0], dtype=torch.float32, device=self.device
         )
 
-        self.vectors = torch.zeros(
-            (width, height, 3), dtype=torch.float32, device=self.device
-        )
-        self.vectors[:, :, 2] = 1.0
+        self._recalculate_camera_vectors()
 
-        rows = torch.arange(width, dtype=torch.float32, device=self.device)
-        cols = torch.arange(height, dtype=torch.float32, device=self.device)
+    def _recalculate_camera_vectors(self):
+        rows = torch.arange(self.width, dtype=torch.float32, device=self.device)
+        cols = torch.arange(self.height, dtype=torch.float32, device=self.device)
         ii, jj = torch.meshgrid(rows, cols, indexing="ij")
 
         self.points = torch.stack([ii, jj, torch.zeros_like(ii)], dim=-1)
+        f = self._calculate_focal_length()
+        eye = torch.tensor(
+            [self.width / 2, self.height / 2, -f.item()],
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        self.vectors = self.points - eye
+        self.vectors = torch.nn.functional.normalize(self.vectors, dim=-1)
 
     def draw(self):
         mask, points = self.sphere.lines_intersect(self.points, self.vectors)
@@ -128,3 +135,21 @@ class Camera:
 
     def translate_z(self, step):
         self.sphere.move(0, 0, step)
+
+    def update_fov(self, delta):
+        self._fov = max(10, min(170, self._fov + delta))
+        self._recalculate_camera_vectors()
+
+    def get_details(self):
+        x, y, z = self.sphere.coords.tolist()
+        return [
+            f"x: {x:.2f}",
+            f"y: {y:.2f}",
+            f"z: {z:.2f}",
+            f"fov: {self._fov:.2f}°",
+        ]
+
+    def _calculate_focal_length(self):
+        fov_rad = torch.tensor(self._fov * (torch.pi / 180.0), device=self.device)
+        f = (self.width / 2.0) / torch.tan(fov_rad / 2.0)
+        return f.float()
