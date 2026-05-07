@@ -89,6 +89,7 @@ def main():
     pygame.font.init()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(device)
     camera = Camera(WIDTH, HEIGHT, filename, device=device)
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -153,7 +154,7 @@ def main():
         screen.blit(fps_surface, (WIDTH - fps_surface.get_width() - 10, 10))
         pygame.display.flip()
 
-        clock.tick(60)
+        clock.tick(240)
         root.after(1, run_loop)
 
     root.protocol("WM_DELETE_WINDOW", close_app)
