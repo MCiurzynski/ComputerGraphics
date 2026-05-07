@@ -4,9 +4,9 @@ import tkinter as tk
 from tkinter.filedialog import askopenfilename
 
 import pygame
-import torch
 
 from src.phong import Camera
+import torch
 
 WIDTH = 800
 HEIGHT = 800
@@ -65,7 +65,7 @@ def main():
     )
     control_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-    tk.Label(control_panel, text="Ustawienia Phonga", fg="white", bg="#2c2c2c").pack(
+    tk.Label(control_panel, text="Phong model settings", fg="white", bg="#2c2c2c").pack(
         pady=20
     )
 
@@ -111,14 +111,52 @@ def main():
         ("n", 1, 500, 1.0, True),
     ]
 
+    slider_labels = {
+        "red": "Object color - red channel",
+        "green": "Object color - green channel",
+        "blue": "Object color - blue channel",
+        "Ia": "Ia - ambient light intensity",
+        "IP": "Ip - point light intensity",
+        "ka": "ka - ambient reflection coefficient",
+        "ks": "ks - specular reflection coefficient",
+        "kd": "kd - diffuse reflection coefficient",
+        "fatt": "fatt - distance attenuation factor",
+        "n": "n - shininess exponent",
+    }
+
+    initial_kd = max(0.0, min(1.0, float(sphere_params["kd"])))
+    sphere_params["kd"] = round(initial_kd, 2)
+    sphere_params["ks"] = round(1.0 - sphere_params["kd"], 2)
+    camera.update_sphere_param("kd", sphere_params["kd"])
+    camera.update_sphere_param("ks", sphere_params["ks"])
+
+    sliders = {}
+    is_sync_update = False
+
     def on_slider_change(param_name, is_int, raw_value):
+        nonlocal is_sync_update
         value = int(float(raw_value)) if is_int else float(raw_value)
+
+        if param_name in ("kd", "ks"):
+            value = round(max(0.0, min(1.0, value)), 2)
+            paired_param = "ks" if param_name == "kd" else "kd"
+            paired_value = round(1.0 - value, 2)
+
+            camera.update_sphere_param(param_name, value)
+            camera.update_sphere_param(paired_param, paired_value)
+
+            if not is_sync_update:
+                is_sync_update = True
+                sliders[paired_param].set(paired_value)
+                is_sync_update = False
+            return
+
         camera.update_sphere_param(param_name, value)
 
     for param_name, from_value, to_value, resolution, is_int in slider_specs:
         slider_label = tk.Label(
             control_panel,
-            text=param_name,
+            text=slider_labels[param_name],
             fg="white",
             bg="#2c2c2c",
             anchor="w",
@@ -140,6 +178,7 @@ def main():
         )
         slider.set(sphere_params[param_name])
         slider.pack(fill=tk.X, padx=20, pady=(0, 6))
+        sliders[param_name] = slider
 
     def update_light_position(event):
         if 0 <= event.x < WIDTH and 0 <= event.y < HEIGHT:
