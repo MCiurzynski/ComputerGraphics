@@ -1,4 +1,5 @@
 import json
+
 import torch
 
 
@@ -60,6 +61,15 @@ class Sphere:
 
     def move(self, x, y, z):
         self.coords += torch.tensor([x, y, z], dtype=torch.float32, device=self.device)
+
+    def set_param(self, name, value):
+        self.params[name] = value
+        if name in {"red", "green", "blue"}:
+            self.color = torch.tensor(
+                [self.params["red"], self.params["green"], self.params["blue"]],
+                dtype=torch.float32,
+                device=self.device,
+            )
 
 
 class Camera:
@@ -139,6 +149,12 @@ class Camera:
     def update_fov(self, delta):
         self._fov = max(10, min(170, self._fov + delta))
         self._recalculate_camera_vectors()
+
+    def update_sphere_param(self, name, value):
+        self.sphere.set_param(name, value)
+
+    def get_sphere_params(self):
+        return self.sphere.params.copy()
 
     def get_details(self):
         x, y, z = self.sphere.coords.tolist()

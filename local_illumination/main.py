@@ -4,9 +4,9 @@ import tkinter as tk
 from tkinter.filedialog import askopenfilename
 
 import pygame
+import torch
 
 from src.phong import Camera
-import torch
 
 WIDTH = 800
 HEIGHT = 800
@@ -92,10 +92,54 @@ def main():
     print(device)
     camera = Camera(WIDTH, HEIGHT, filename, device=device)
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    sphere_params = camera.get_sphere_params()
 
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 24)
     details_font = pygame.font.SysFont(None, 20)
+
+    slider_specs = [
+        ("red", 0, 255, 1.0, True),
+        ("green", 0, 255, 1.0, True),
+        ("blue", 0, 255, 1.0, True),
+        ("Ia", 0, 255, 1.0, True),
+        ("IP", 1, 255, 1.0, True),
+        ("kd", 0, 1, 0.01, False),
+        ("ks", 0, 1, 0.01, False),
+        ("ka", 0, 1, 0.01, False),
+        ("fatt", 0, 1, 0.01, False),
+        ("n", 1, 500, 1.0, True),
+    ]
+
+    def on_slider_change(param_name, is_int, raw_value):
+        value = int(float(raw_value)) if is_int else float(raw_value)
+        camera.update_sphere_param(param_name, value)
+
+    for param_name, from_value, to_value, resolution, is_int in slider_specs:
+        slider_label = tk.Label(
+            control_panel,
+            text=param_name,
+            fg="white",
+            bg="#2c2c2c",
+            anchor="w",
+        )
+        slider_label.pack(fill=tk.X, padx=20)
+        slider = tk.Scale(
+            control_panel,
+            from_=from_value,
+            to=to_value,
+            resolution=resolution,
+            orient=tk.HORIZONTAL,
+            length=360,
+            bg="#2c2c2c",
+            fg="white",
+            highlightthickness=0,
+            command=lambda raw_value, p=param_name, i=is_int: on_slider_change(
+                p, i, raw_value
+            ),
+        )
+        slider.set(sphere_params[param_name])
+        slider.pack(fill=tk.X, padx=20, pady=(0, 6))
 
     def update_light_position(event):
         if 0 <= event.x < WIDTH and 0 <= event.y < HEIGHT:
