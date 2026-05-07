@@ -13,30 +13,39 @@ WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 800
 
 
-def control_handler(camera):
+def control_handler(camera, pressed_keys):
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False
     keys = pygame.key.get_pressed()
 
-    if keys[pygame.K_w]:
+    def is_pressed(pygame_key, tk_key):
+        return keys[pygame_key] or tk_key in pressed_keys
+
+    if is_pressed(pygame.K_w, "w"):
         camera.translate_z(5)
-    if keys[pygame.K_s]:
+    if is_pressed(pygame.K_s, "s"):
         camera.translate_z(-5)
-    if keys[pygame.K_a]:
+    if is_pressed(pygame.K_a, "a"):
         camera.translate_x(-5)
-    if keys[pygame.K_d]:
+    if is_pressed(pygame.K_d, "d"):
         camera.translate_x(5)
-    if keys[pygame.K_SPACE]:
+    if is_pressed(pygame.K_SPACE, "space"):
         camera.translate_y(-5)
-    if keys[pygame.K_LSHIFT]:
+    if (
+        keys[pygame.K_LSHIFT]
+        or keys[pygame.K_RSHIFT]
+        or "shift_l" in pressed_keys
+        or "shift_r" in pressed_keys
+    ):
         camera.translate_y(5)
-    if keys[pygame.K_ESCAPE]:
+    if is_pressed(pygame.K_ESCAPE, "escape"):
         return False
     return True
 
 
 def main():
+    # Initialize Tkinter interface
     root = tk.Tk()
     root.title("Local illumination Visualization")
     root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
@@ -44,6 +53,7 @@ def main():
     root.maxsize(WINDOW_WIDTH, WINDOW_HEIGHT)
     root.resizable(False, False)
 
+    # Initialize pygame frame
     pygame_frame = tk.Frame(root, width=WIDTH, height=HEIGHT)
     pygame_frame.pack(side=tk.LEFT, fill=tk.NONE, expand=False)
     pygame_frame.pack_propagate(False)
@@ -57,6 +67,7 @@ def main():
         pady=20
     )
 
+    # Necessary for proper pygame frame nesting
     root.update_idletasks()
     os.environ["SDL_WINDOWID"] = str(pygame_frame.winfo_id())
     if os.name != "nt":
@@ -89,6 +100,17 @@ def main():
     pygame_frame.bind("<Button-1>", update_light_position)
     pygame_frame.bind("<B1-Motion>", update_light_position)
 
+    pressed_keys = set()
+
+    def on_key_press(event):
+        pressed_keys.add(event.keysym.lower())
+
+    def on_key_release(event):
+        pressed_keys.discard(event.keysym.lower())
+
+    root.bind_all("<KeyPress>", on_key_press)
+    root.bind_all("<KeyRelease>", on_key_release)
+
     running = True
 
     def close_app():
@@ -96,6 +118,8 @@ def main():
         if not running:
             return
         running = False
+        root.unbind_all("<KeyPress>")
+        root.unbind_all("<KeyRelease>")
         if pygame.get_init():
             pygame.quit()
         root.destroy()
@@ -103,7 +127,7 @@ def main():
     def run_loop():
         if not running:
             return
-        if not control_handler(camera):
+        if not control_handler(camera, pressed_keys):
             close_app()
             return
 
