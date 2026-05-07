@@ -6,6 +6,7 @@ from tkinter.filedialog import askopenfilename
 import pygame
 
 from src.phong import Camera
+import torch
 
 WIDTH = 800
 HEIGHT = 800
@@ -39,6 +40,7 @@ def control_handler(camera, pressed_keys):
         or "shift_r" in pressed_keys
     ):
         camera.translate_y(5)
+
     if is_pressed(pygame.K_ESCAPE, "escape"):
         return False
     return True
@@ -86,7 +88,8 @@ def main():
     pygame.init()
     pygame.font.init()
 
-    camera = Camera(WIDTH, HEIGHT, filename)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    camera = Camera(WIDTH, HEIGHT, filename, device=device)
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
     clock = pygame.time.Clock()
@@ -110,6 +113,18 @@ def main():
 
     root.bind_all("<KeyPress>", on_key_press)
     root.bind_all("<KeyRelease>", on_key_release)
+
+    def update_fov(event):
+        if event.num == 4:  # Scroll up
+            pass
+        elif event.num == 5:  # Scroll down
+            pass
+        if event.delta != 0:
+            pass
+
+    pygame_frame.bind("<Button-4>", update_fov)
+    pygame_frame.bind("<Button-5>", update_fov)
+    pygame_frame.bind("<MouseWheel>", update_fov)
 
     running = True
 
